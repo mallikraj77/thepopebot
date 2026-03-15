@@ -464,6 +464,7 @@ function RoleTabContent({ role, clusterId, status, onUpdate, onDelete }) {
 
   const [cronValue, setCronValue] = useState(tc.cron?.schedule || '');
   const [fileWatchValue, setFileWatchValue] = useState(tc.file_watch?.paths || '');
+  const [fileWatchDebounce, setFileWatchDebounce] = useState(tc.file_watch?.debounce ?? 1000);
 
   const runningCount = status?.running || 0;
   const isRunning = runningCount > 0;
@@ -479,6 +480,7 @@ function RoleTabContent({ role, clusterId, status, onUpdate, onDelete }) {
     const tc = role.triggerConfig || {};
     setCronValue(tc.cron?.schedule || '');
     setFileWatchValue(tc.file_watch?.paths || '');
+    setFileWatchDebounce(tc.file_watch?.debounce ?? 1000);
     setEditingName(false);
     setConfirmDelete(false);
   }, [role.id]);
@@ -531,7 +533,8 @@ function RoleTabContent({ role, clusterId, status, onUpdate, onDelete }) {
         onUpdate(role.id, { triggerConfig: buildConfig({ file_watch: { enabled: false } }) });
       } else {
         const paths = fileWatchValue || '';
-        onUpdate(role.id, { triggerConfig: buildConfig({ file_watch: { enabled: true, paths } }) });
+        const debounce = fileWatchDebounce ?? 1000;
+        onUpdate(role.id, { triggerConfig: buildConfig({ file_watch: { enabled: true, paths, debounce } }) });
       }
     }
   };
@@ -545,8 +548,17 @@ function RoleTabContent({ role, clusterId, status, onUpdate, onDelete }) {
 
   const saveFileWatch = () => {
     const trimmed = fileWatchValue.trim();
-    if (hasFileWatch && trimmed !== (tc.file_watch?.paths || '')) {
-      onUpdate(role.id, { triggerConfig: buildConfig({ file_watch: { enabled: true, paths: trimmed } }) });
+    const debounce = fileWatchDebounce ?? 1000;
+    if (hasFileWatch && (trimmed !== (tc.file_watch?.paths || '') || debounce !== (tc.file_watch?.debounce ?? 1000))) {
+      onUpdate(role.id, { triggerConfig: buildConfig({ file_watch: { enabled: true, paths: trimmed, debounce } }) });
+    }
+  };
+
+  const saveFileWatchDebounce = () => {
+    const debounce = fileWatchDebounce ?? 1000;
+    if (hasFileWatch && debounce !== (tc.file_watch?.debounce ?? 1000)) {
+      const paths = fileWatchValue.trim();
+      onUpdate(role.id, { triggerConfig: buildConfig({ file_watch: { enabled: true, paths, debounce } }) });
     }
   };
 
@@ -830,6 +842,19 @@ function RoleTabContent({ role, clusterId, status, onUpdate, onDelete }) {
               className="text-sm bg-background border border-input rounded-md px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-ring font-mono"
             />
             <p className="text-xs text-muted-foreground mt-1.5">Comma-separated paths relative to cluster data dir.</p>
+            <label className="text-xs font-medium text-muted-foreground block mb-1.5 mt-3">Debounce (ms)</label>
+            <input
+              type="number"
+              min={100}
+              step={100}
+              value={fileWatchDebounce}
+              onChange={(e) => setFileWatchDebounce(parseInt(e.target.value) || 1000)}
+              onBlur={saveFileWatchDebounce}
+              onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); }}
+              placeholder="1000"
+              className="text-sm bg-background border border-input rounded-md px-3 py-2 w-24 focus:outline-none focus:ring-2 focus:ring-ring font-mono"
+            />
+            <p className="text-xs text-muted-foreground mt-1.5">Wait time after last file change before triggering.</p>
           </div>
         )}
       </div>
